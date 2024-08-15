@@ -9,13 +9,13 @@ async function FavoriteToggleButton({ propertyId }: { propertyId: string }) {
     const { userId } = auth();
     if (!userId) return <CardSignInButton />;
     const favoriteId = await fetchFavoriteId({ propertyId });
-    console.log(propertyId);
-    console.log(favoriteId);
+
     return (
+        <div>hi</div>
         // <FavoriteToggleForm favoriteId={favoriteId} propertyId={propertyId} />
-        <Button size='icon' variant='outline' className='p-2 cursor-pointer'>
-            <FaHeart />
-        </Button>
+        // <Button size='icon' variant='outline' className='p-2 cursor-pointer'>
+        //     <FaHeart />
+        // </Button>
     );
 }
 export default FavoriteToggleButton;
