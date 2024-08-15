@@ -40,11 +40,9 @@ function PropertyCard({ property }: { property: PropertyCardProps }) {
                     <CountryFlagAndName countryCode={country} />
                 </div>
             </Link>
-            <div className='absolute top-4 right-4 z-5'>
-                {/* favorite toggle button */}
+            {/* <div className='absolute top-4 right-4 z-5'>
                 <FavoriteToggleButton propertyId={propertyId} />
-            </div>
-            ;
+            </div> */}
         </article>
     );
 }

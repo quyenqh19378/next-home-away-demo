@@ -9,6 +9,8 @@ async function FavoriteToggleButton({ propertyId }: { propertyId: string }) {
     const { userId } = auth();
     if (!userId) return <CardSignInButton />;
     const favoriteId = await fetchFavoriteId({ propertyId });
+    console.log(propertyId);
+    console.log(favoriteId);
     return (
         // <FavoriteToggleForm favoriteId={favoriteId} propertyId={propertyId} />
         <Button size='icon' variant='outline' className='p-2 cursor-pointer'>
