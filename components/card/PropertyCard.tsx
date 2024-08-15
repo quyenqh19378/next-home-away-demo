@@ -40,12 +40,12 @@ function PropertyCard({ property }: { property: PropertyCardProps }) {
                     <CountryFlagAndName countryCode={country} />
                 </div>
             </Link>
+            <div className='absolute top-4 right-4 z-5'>
+                {/* favorite toggle button */}
+                <FavoriteToggleButton propertyId={propertyId} />
+            </div>
+            ;
         </article>
     );
 }
 export default PropertyCard;
-
-// {/* <div className='absolute top-4 right-4 z-5'>
-//     {/* favorite toggle button */}
-//     <FavoriteToggleButton propertyId={propertyId} />
-// </div>; */}
