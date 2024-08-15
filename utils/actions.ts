@@ -211,9 +211,10 @@ export const fetchFavoriteId = async ({
 export const toggleFavoriteAction = async (prevState: {
     propertyId: string;
     favoriteId: string | null;
+    pathname: string;
 }) => {
     const user = await getAuthUser();
-    const { propertyId, favoriteId } = prevState;
+    const { propertyId, favoriteId, pathname } = prevState;
     try {
         if (favoriteId) {
             await prisma.favorite.delete({
@@ -229,7 +230,7 @@ export const toggleFavoriteAction = async (prevState: {
                 },
             });
         }
-        revalidatePath("/");
+        revalidatePath(pathname);
         return {
             message: favoriteId ? "Removed from Faves" : "Added to Faves",
         };
