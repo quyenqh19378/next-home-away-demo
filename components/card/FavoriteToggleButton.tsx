@@ -14,6 +14,7 @@ async function FavoriteToggleButton() {
     return (
         // <FavoriteToggleForm favoriteId={favoriteId} propertyId={propertyId} />
         <Button size='icon' variant='outline' className='p-2 cursor-pointer'>
+            ji
             <FaHeart />
         </Button>
     );
