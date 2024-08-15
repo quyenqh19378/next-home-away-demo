@@ -15,10 +15,11 @@ function HomePage({
                 search={searchParams.search}
             />
             <Suspense fallback={<LoadingCards />}>
-                <PropertiesContainer
+                {/* <PropertiesContainer
                     category={searchParams.category}
                     search={searchParams.search}
-                />
+                /> */}
+                <h1>Hello next</h1>
             </Suspense>
         </section>
     );
