@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Title from "./Title";
-import { Button } from "../ui/button";
+import { Button } from "@/components/ui/button";
 
 function Description({ description }: { description: string }) {
     const [isFullDescriptionShown, setIsFullDescriptionShown] = useState(false);

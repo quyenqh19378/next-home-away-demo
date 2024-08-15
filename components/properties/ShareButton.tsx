@@ -1,20 +1,16 @@
 "use client";
 
 import { LuShare2 } from "react-icons/lu";
-import { Button } from "../ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import {
     EmailIcon,
     EmailShareButton,
-    FacebookIcon,
-    FacebookMessengerIcon,
-    FacebookMessengerShareButton,
-    FacebookShareButton,
     LinkedinIcon,
     LinkedinShareButton,
     TwitterIcon,
     TwitterShareButton,
 } from "react-share";
+import { Button } from "../ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 
 function ShareButton({
     propertyId,

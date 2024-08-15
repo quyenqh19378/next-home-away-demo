@@ -9,8 +9,9 @@ type PropertyDetailsProps = {
     };
 };
 
-function PropertyDetails({ details }: PropertyDetailsProps) {
-    const { bedrooms, baths, guests, beds } = details;
+function PropertyDetails({
+    details: { bedrooms, baths, guests, beds },
+}: PropertyDetailsProps) {
     return (
         <p className='text-md font-light'>
             <span>{formatQuantity(bedrooms, "bedroom")} &middot;</span>
