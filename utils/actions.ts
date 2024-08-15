@@ -213,7 +213,7 @@ export const toggleFavoriteAction = async (prevState: {
     favoriteId: string | null;
 }) => {
     const user = await getAuthUser();
-    const { propertyId, favoriteId, pathname } = prevState;
+    const { propertyId, favoriteId } = prevState;
     try {
         if (favoriteId) {
             await prisma.favorite.delete({
