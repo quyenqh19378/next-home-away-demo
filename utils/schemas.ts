@@ -86,3 +86,10 @@ export const propertySchema = z.object({
         .min(0, { message: "baths amount must be a positive number." }),
     amenities: z.string(),
 });
+
+// review
+export const createReviewSchema = z.object({
+    propertyId: z.string(),
+    rating: z.coerce.number().int().min(1).max(5),
+    comment: z.string().min(10).max(1000),
+});
