@@ -15,17 +15,17 @@ import { uploadImage } from "./supabase";
 import { calculateTotals } from "./calculateTotals";
 import { formatDate } from "@/utils/format";
 
-const getAdminUser = async () => {
-    const user = await getAuthUser();
-    if (user.id !== process.env.ADMIN_USER_ID) redirect("/");
-    return user;
-};
-
 const getAuthUser = async () => {
     const user = await currentUser();
     if (!user) throw new Error("You must be logged in to access this route");
     if (!user.privateMetadata.hasProfile) redirect("/profile/create");
 
+    return user;
+};
+
+const getAdminUser = async () => {
+    const user = await getAuthUser();
+    if (user.id !== process.env.ADMIN_USER_ID) redirect("/");
     return user;
 };
 
