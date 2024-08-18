@@ -1,25 +1,25 @@
 "use server";
 
-import prisma from "./db";
 import {
-    createReviewSchema,
     imageSchema,
     profileSchema,
     propertySchema,
     validateWithZodSchema,
+    createReviewSchema,
 } from "./schemas";
-import { clerkClient, currentUser, getAuth } from "@clerk/nextjs/server";
+import db from "./db";
+import { auth, clerkClient, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { uploadImage } from "./supabase";
 import { calculateTotals } from "./calculateTotals";
-import { formatDate } from "@/utils/format";
-
+import { formatDate } from "./format";
 const getAuthUser = async () => {
     const user = await currentUser();
-    if (!user) throw new Error("You must be logged in to access this route");
+    if (!user) {
+        throw new Error("You must be logged in to access this route");
+    }
     if (!user.privateMetadata.hasProfile) redirect("/profile/create");
-
     return user;
 };
 
@@ -47,7 +47,7 @@ export const createProfileAction = async (
         const rawData = Object.fromEntries(formData);
         const validatedFields = validateWithZodSchema(profileSchema, rawData);
 
-        await prisma.profile.create({
+        await db.profile.create({
             data: {
                 clerkId: user.id,
                 email: user.emailAddresses[0].emailAddress,
@@ -55,7 +55,6 @@ export const createProfileAction = async (
                 ...validatedFields,
             },
         });
-
         await clerkClient.users.updateUserMetadata(user.id, {
             privateMetadata: {
                 hasProfile: true,
@@ -71,7 +70,7 @@ export const fetchProfileImage = async () => {
     const user = await currentUser();
     if (!user) return null;
 
-    const profile = await prisma.profile.findUnique({
+    const profile = await db.profile.findUnique({
         where: {
             clerkId: user.id,
         },
@@ -85,12 +84,12 @@ export const fetchProfileImage = async () => {
 
 export const fetchProfile = async () => {
     const user = await getAuthUser();
-    const profile = await prisma.profile.findUnique({
+    const profile = await db.profile.findUnique({
         where: {
             clerkId: user.id,
         },
     });
-    if (!profile) return redirect("/profile/create");
+    if (!profile) redirect("/profile/create");
     return profile;
 };
 
@@ -99,16 +98,18 @@ export const updateProfileAction = async (
     formData: FormData
 ): Promise<{ message: string }> => {
     const user = await getAuthUser();
+
     try {
         const rawData = Object.fromEntries(formData);
         const validatedFields = validateWithZodSchema(profileSchema, rawData);
 
-        await prisma.profile.update({
+        await db.profile.update({
             where: {
                 clerkId: user.id,
             },
             data: validatedFields,
         });
+
         revalidatePath("/profile");
         return { message: "Profile updated successfully" };
     } catch (error) {
@@ -125,7 +126,8 @@ export const updateProfileImageAction = async (
         const image = formData.get("image") as File;
         const validatedFields = validateWithZodSchema(imageSchema, { image });
         const fullPath = await uploadImage(validatedFields.image);
-        await prisma.profile.update({
+
+        await db.profile.update({
             where: {
                 clerkId: user.id,
             },
@@ -148,6 +150,7 @@ export const createPropertyAction = async (
     try {
         const rawData = Object.fromEntries(formData);
         const file = formData.get("image") as File;
+        console.log(rawData);
 
         const validatedFields = validateWithZodSchema(propertySchema, rawData);
         const validatedFile = validateWithZodSchema(imageSchema, {
@@ -155,7 +158,7 @@ export const createPropertyAction = async (
         });
         const fullPath = await uploadImage(validatedFile.image);
 
-        await prisma.property.create({
+        await db.property.create({
             data: {
                 ...validatedFields,
                 image: fullPath,
@@ -175,7 +178,7 @@ export const fetchProperties = async ({
     search?: string;
     category?: string;
 }) => {
-    const properties = await prisma.property.findMany({
+    const properties = await db.property.findMany({
         where: {
             category,
             OR: [
@@ -188,8 +191,8 @@ export const fetchProperties = async ({
             name: true,
             tagline: true,
             country: true,
-            image: true,
             price: true,
+            image: true,
         },
         orderBy: {
             createdAt: "desc",
@@ -198,53 +201,13 @@ export const fetchProperties = async ({
     return properties;
 };
 
-export const fetchPropertyDetails = async (id: string) => {
-    return prisma.property.findUnique({
-        where: {
-            id,
-        },
-        include: {
-            profile: true,
-            bookings: {
-                select: {
-                    checkIn: true,
-                    checkOut: true,
-                },
-            },
-        },
-    });
-};
-
-export const fetchFavorites = async () => {
-    const user = await getAuthUser();
-    const favorites = await prisma.favorite.findMany({
-        where: {
-            profileId: user.id,
-        },
-        select: {
-            property: {
-                select: {
-                    id: true,
-                    name: true,
-                    tagline: true,
-                    price: true,
-                    country: true,
-                    image: true,
-                },
-            },
-        },
-    });
-
-    return favorites.map((favorite) => favorite.property);
-};
-
 export const fetchFavoriteId = async ({
     propertyId,
 }: {
     propertyId: string;
 }) => {
     const user = await getAuthUser();
-    const favorite = await prisma.favorite.findFirst({
+    const favorite = await db.favorite.findFirst({
         where: {
             propertyId,
             profileId: user.id,
@@ -253,7 +216,6 @@ export const fetchFavoriteId = async ({
             id: true,
         },
     });
-
     return favorite?.id || null;
 };
 
@@ -266,13 +228,13 @@ export const toggleFavoriteAction = async (prevState: {
     const { propertyId, favoriteId, pathname } = prevState;
     try {
         if (favoriteId) {
-            await prisma.favorite.delete({
+            await db.favorite.delete({
                 where: {
                     id: favoriteId,
                 },
             });
         } else {
-            await prisma.favorite.create({
+            await db.favorite.create({
                 data: {
                     propertyId,
                     profileId: user.id,
@@ -288,30 +250,70 @@ export const toggleFavoriteAction = async (prevState: {
     }
 };
 
-// Review
-export const createReviewAction = async (
-    prevState: any,
-    formData: FormData
-) => {
+export const fetchFavorites = async () => {
+    const user = await getAuthUser();
+    const favorites = await db.favorite.findMany({
+        where: {
+            profileId: user.id,
+        },
+        select: {
+            property: {
+                select: {
+                    id: true,
+                    name: true,
+                    tagline: true,
+                    country: true,
+                    price: true,
+                    image: true,
+                },
+            },
+        },
+    });
+    return favorites.map((favorite) => favorite.property);
+};
+
+export const fetchPropertyDetails = (id: string) => {
+    return db.property.findUnique({
+        where: {
+            id,
+        },
+        include: {
+            profile: true,
+            bookings: {
+                select: {
+                    checkIn: true,
+                    checkOut: true,
+                },
+            },
+        },
+    });
+};
+
+export async function createReviewAction(prevState: any, formData: FormData) {
     const user = await getAuthUser();
     try {
         const rawData = Object.fromEntries(formData);
+
         const validatedFields = validateWithZodSchema(
             createReviewSchema,
             rawData
         );
-        await prisma.review.create({
-            data: { ...validatedFields, profileId: user.id },
+
+        await db.review.create({
+            data: {
+                ...validatedFields,
+                profileId: user.id,
+            },
         });
         revalidatePath(`/properties/${validatedFields.propertyId}`);
         return { message: "Review submitted successfully" };
     } catch (error) {
         return renderError(error);
     }
-};
+}
 
-export const fetchPropertyReviews = async (propertyId: string) => {
-    const reviews = await prisma.review.findMany({
+export async function fetchPropertyReviews(propertyId: string) {
+    const reviews = await db.review.findMany({
         where: {
             propertyId,
         },
@@ -331,11 +333,11 @@ export const fetchPropertyReviews = async (propertyId: string) => {
         },
     });
     return reviews;
-};
+}
 
 export const fetchPropertyReviewsByUser = async () => {
     const user = await getAuthUser();
-    const reviews = await prisma.review.findMany({
+    const reviews = await db.review.findMany({
         where: {
             profileId: user.id,
         },
@@ -351,20 +353,21 @@ export const fetchPropertyReviewsByUser = async () => {
             },
         },
     });
-
     return reviews;
 };
 
 export const deleteReviewAction = async (prevState: { reviewId: string }) => {
     const { reviewId } = prevState;
     const user = await getAuthUser();
+
     try {
-        await prisma.review.delete({
+        await db.review.delete({
             where: {
                 id: reviewId,
                 profileId: user.id,
             },
         });
+
         revalidatePath("/reviews");
         return { message: "Review deleted successfully" };
     } catch (error) {
@@ -376,18 +379,16 @@ export const findExistingReview = async (
     userId: string,
     propertyId: string
 ) => {
-    return prisma.review.findFirst({
+    return db.review.findFirst({
         where: {
             profileId: userId,
-            propertyId,
+            propertyId: propertyId,
         },
     });
 };
 
-// Rating
-
-export const fetchPropertyRating = async (propertyId: string) => {
-    const result = await prisma.review.groupBy({
+export async function fetchPropertyRating(propertyId: string) {
+    const result = await db.review.groupBy({
         by: ["propertyId"],
         _avg: {
             rating: true,
@@ -400,31 +401,35 @@ export const fetchPropertyRating = async (propertyId: string) => {
         },
     });
 
-    //empty array if no reviews
+    // empty array if no reviews
     return {
         rating: result[0]?._avg.rating?.toFixed(1) ?? 0,
         count: result[0]?._count.rating ?? 0,
     };
-};
+}
 
-// Booking
 export const createBookingAction = async (prevState: {
     propertyId: string;
     checkIn: Date;
     checkOut: Date;
 }) => {
     const user = await getAuthUser();
-
-    const { propertyId, checkIn, checkOut } = prevState;
-    const property = await prisma.property.findUnique({
+    await db.booking.deleteMany({
         where: {
-            id: propertyId,
-        },
-        select: {
-            price: true,
+            profileId: user.id,
+            paymentStatus: false,
         },
     });
-    if (!property) return { message: "Property not found" };
+    let bookingId: null | string = null;
+
+    const { propertyId, checkIn, checkOut } = prevState;
+    const property = await db.property.findUnique({
+        where: { id: propertyId },
+        select: { price: true },
+    });
+    if (!property) {
+        return { message: "Property not found" };
+    }
     const { orderTotal, totalNight } = calculateTotals({
         checkIn,
         checkOut,
@@ -432,7 +437,7 @@ export const createBookingAction = async (prevState: {
     });
 
     try {
-        const booking = await prisma.booking.create({
+        const booking = await db.booking.create({
             data: {
                 checkIn,
                 checkOut,
@@ -442,18 +447,19 @@ export const createBookingAction = async (prevState: {
                 propertyId,
             },
         });
+        bookingId = booking.id;
     } catch (error) {
         return renderError(error);
     }
-
-    redirect("/bookings");
+    redirect(`/checkout?bookingId=${bookingId}`);
 };
 
 export const fetchBookings = async () => {
     const user = await getAuthUser();
-    const bookings = await prisma.booking.findMany({
+    const bookings = await db.booking.findMany({
         where: {
             profileId: user.id,
+            paymentStatus: true,
         },
         include: {
             property: {
@@ -464,6 +470,7 @@ export const fetchBookings = async () => {
                 },
             },
         },
+
         orderBy: {
             checkIn: "desc",
         },
@@ -471,28 +478,28 @@ export const fetchBookings = async () => {
     return bookings;
 };
 
-export const deleteBookingAction = async (prevState: { bookingId: string }) => {
+export async function deleteBookingAction(prevState: { bookingId: string }) {
     const { bookingId } = prevState;
     const user = await getAuthUser();
 
     try {
-        const result = await prisma.booking.delete({
+        const result = await db.booking.delete({
             where: {
                 id: bookingId,
                 profileId: user.id,
             },
         });
+
         revalidatePath("/bookings");
         return { message: "Booking deleted successfully" };
     } catch (error) {
         return renderError(error);
     }
-};
+}
 
-// Rentals
 export const fetchRentals = async () => {
     const user = await getAuthUser();
-    const rentals = await prisma.property.findMany({
+    const rentals = await db.property.findMany({
         where: {
             profileId: user.id,
         },
@@ -505,18 +512,20 @@ export const fetchRentals = async () => {
 
     const rentalsWithBookingSums = await Promise.all(
         rentals.map(async (rental) => {
-            const totalNightsSum = await prisma.booking.aggregate({
+            const totalNightsSum = await db.booking.aggregate({
                 where: {
                     propertyId: rental.id,
+                    paymentStatus: true,
                 },
                 _sum: {
                     totalNight: true,
                 },
             });
 
-            const orderTotalSum = await prisma.booking.aggregate({
+            const orderTotalSum = await db.booking.aggregate({
                 where: {
                     propertyId: rental.id,
+                    paymentStatus: true,
                 },
                 _sum: {
                     orderTotal: true,
@@ -530,32 +539,33 @@ export const fetchRentals = async () => {
             };
         })
     );
+
     return rentalsWithBookingSums;
 };
 
-export const deleteRentalAction = async (prevState: { propertyId: string }) => {
-    const user = await getAuthUser();
+export async function deleteRentalAction(prevState: { propertyId: string }) {
     const { propertyId } = prevState;
+    const user = await getAuthUser();
 
     try {
-        await prisma.property.delete({
+        await db.property.delete({
             where: {
                 id: propertyId,
                 profileId: user.id,
             },
         });
+
         revalidatePath("/rentals");
         return { message: "Rental deleted successfully" };
     } catch (error) {
         return renderError(error);
     }
-};
+}
 
-export const fetchRentalDetails = async (prevState: { propertyId: string }) => {
-    const { propertyId } = prevState;
+export const fetchRentalDetails = async (propertyId: string) => {
     const user = await getAuthUser();
 
-    return prisma.property.findUnique({
+    return db.property.findUnique({
         where: {
             id: propertyId,
             profileId: user.id,
@@ -569,11 +579,11 @@ export const updatePropertyAction = async (
 ): Promise<{ message: string }> => {
     const user = await getAuthUser();
     const propertyId = formData.get("id") as string;
+
     try {
         const rawData = Object.fromEntries(formData);
         const validatedFields = validateWithZodSchema(propertySchema, rawData);
-
-        await prisma.property.update({
+        await db.property.update({
             where: {
                 id: propertyId,
                 profileId: user.id,
@@ -582,8 +592,9 @@ export const updatePropertyAction = async (
                 ...validatedFields,
             },
         });
-        revalidatePath(`/properties/${propertyId}/edit`);
-        return { message: "Update successfully" };
+
+        revalidatePath(`/rentals/${propertyId}/edit`);
+        return { message: "Update Successful" };
     } catch (error) {
         return renderError(error);
     }
@@ -598,10 +609,10 @@ export const updatePropertyImageAction = async (
 
     try {
         const image = formData.get("image") as File;
-        const validatedFile = validateWithZodSchema(imageSchema, { image });
-        const fullPath = await uploadImage(validatedFile.image);
+        const validatedFields = validateWithZodSchema(imageSchema, { image });
+        const fullPath = await uploadImage(validatedFields.image);
 
-        await prisma.property.update({
+        await db.property.update({
             where: {
                 id: propertyId,
                 profileId: user.id,
@@ -611,18 +622,18 @@ export const updatePropertyImageAction = async (
             },
         });
         revalidatePath(`/rentals/${propertyId}/edit`);
-        return { message: "Property Image Updated Successfully " };
+        return { message: "Property Image Updated Successful" };
     } catch (error) {
         return renderError(error);
     }
 };
 
-// Reservation
 export const fetchReservations = async () => {
     const user = await getAuthUser();
 
-    const reservations = await prisma.booking.findMany({
+    const reservations = await db.booking.findMany({
         where: {
+            paymentStatus: true,
             property: {
                 profileId: user.id,
             },
@@ -641,17 +652,19 @@ export const fetchReservations = async () => {
             },
         },
     });
-
     return reservations;
 };
 
-// Admin User - Fetch Stats
 export const fetchStats = async () => {
     await getAdminUser();
 
-    const usersCount = await prisma.profile.count();
-    const propertiesCount = await prisma.property.count();
-    const bookingsCount = await prisma.booking.count();
+    const usersCount = await db.profile.count();
+    const propertiesCount = await db.property.count();
+    const bookingsCount = await db.booking.count({
+        where: {
+            paymentStatus: true,
+        },
+    });
 
     return {
         usersCount,
@@ -666,8 +679,9 @@ export const fetchChartsData = async () => {
     date.setMonth(date.getMonth() - 6);
     const sixMonthsAgo = date;
 
-    const bookings = await prisma.booking.findMany({
+    const bookings = await db.booking.findMany({
         where: {
+            paymentStatus: true,
             createdAt: {
                 gte: sixMonthsAgo,
             },
@@ -676,14 +690,12 @@ export const fetchChartsData = async () => {
             createdAt: "asc",
         },
     });
-
-    let bookingsPerMonth = bookings.reduce(
+    const bookingsPerMonth = bookings.reduce(
         (total, current) => {
             const date = formatDate(current.createdAt, true);
-
             const existingEntry = total.find((entry) => entry.date === date);
             if (existingEntry) {
-                existingEntry.count = +1;
+                existingEntry.count += 1;
             } else {
                 total.push({ date, count: 1 });
             }
@@ -691,6 +703,33 @@ export const fetchChartsData = async () => {
         },
         [] as Array<{ date: string; count: number }>
     );
-
     return bookingsPerMonth;
+};
+
+export const fetchReservationStats = async () => {
+    const user = await getAuthUser();
+
+    const properties = await db.property.count({
+        where: {
+            profileId: user.id,
+        },
+    });
+
+    const totals = await db.booking.aggregate({
+        _sum: {
+            orderTotal: true,
+            totalNight: true,
+        },
+        where: {
+            property: {
+                profileId: user.id,
+            },
+        },
+    });
+
+    return {
+        properties,
+        nights: totals._sum.totalNight || 0,
+        amount: totals._sum.orderTotal || 0,
+    };
 };
